@@ -1,13 +1,16 @@
 /**
  * CallPage
- * Active video call interface
+ * Active video call interface with note editor integration
  */
 import React from 'react';
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, StickyNote, Video, Maximize2 } from 'lucide-react';
 import VideoGrid from '../organisms/VideoGrid';
 import ControlPanel from '../organisms/ControlPanel';
+import NoteEditor from '../organisms/NoteEditor';
+import VideoCarousel from '../organisms/VideoCarousel';
+import FloatingNotePanel from '../organisms/FloatingNotePanel';
 import useWebRTC from '../../hooks/useWebRTC';
 import socketService from '../../services/socketService';
 
@@ -15,6 +18,8 @@ export default function CallPage() {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+  const [layoutMode, setLayoutMode] = useState('note-first'); // 'note-first', 'video-first'
+  const [showFloatingNotes, setShowFloatingNotes] = useState(false);
 
   const {
     localStream,
@@ -57,6 +62,41 @@ export default function CallPage() {
     }
   };
 
+  // Prepare participants for carousel
+  const participants = [
+    {
+      id: 'local',
+      stream: localStream,
+      name: 'You',
+      videoEnabled: !isVideoOff,
+      muted: true,
+      isLocal: true,
+      role: 'Teacher', // TODO: Get from user role
+    },
+    remoteStream && {
+      id: 'remote',
+      stream: remoteStream,
+      name: 'Peer',
+      videoEnabled: true,
+      muted: false,
+      isLocal: false,
+      role: 'Student', // TODO: Get from peer data
+    },
+  ].filter(Boolean);
+
+  const LayoutButton = ({ onClick, active, icon: Icon, children }) => (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-lg transition-all duration-200 flex items-center gap-2 text-sm border ${active
+          ? 'bg-blue-600 border-blue-500 text-white'
+          : 'bg-slate-700 border-slate-600 text-gray-300 hover:bg-slate-600 hover:border-blue-500'
+        }`}
+    >
+      <Icon className="w-4 h-4" />
+      {children}
+    </button>
+  );
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-900">
       {/* Header */}
@@ -82,22 +122,70 @@ export default function CallPage() {
             )}
           </button>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50"></div>
-          <span className="text-sm text-gray-300">Connected</span>
+
+        {/* Layout controls */}
+        <div className="flex items-center gap-3">
+          <LayoutButton
+            onClick={() => setLayoutMode('note-first')}
+            active={layoutMode === 'note-first'}
+            icon={StickyNote}
+          >
+            Note View
+          </LayoutButton>
+          <LayoutButton
+            onClick={() => setLayoutMode('video-first')}
+            active={layoutMode === 'video-first'}
+            icon={Video}
+          >
+            Video View
+          </LayoutButton>
+          <LayoutButton
+            onClick={() => setShowFloatingNotes(!showFloatingNotes)}
+            active={showFloatingNotes}
+            icon={Maximize2}
+          >
+            Pop Out
+          </LayoutButton>
+
+          <div className="w-px h-6 bg-slate-600 mx-2" />
+
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50"></div>
+            <span className="text-sm text-gray-300">Connected</span>
+          </div>
         </div>
       </div>
 
-      {/* Video Grid */}
-      <div className="flex-1">
-        <VideoGrid
-          localStream={localStream}
-          remoteStream={remoteStream}
-          localVideoEnabled={!isVideoOff}
-          remoteVideoEnabled={true}
-          localName="You"
-          remoteName="Peer"
-        />
+      {/* Main content area */}
+      <div className="flex-1 flex overflow-hidden">
+        {layoutMode === 'note-first' ? (
+          // Note-first layout: Notes 70%, Video carousel at top
+          <div className="flex-1 flex flex-col">
+            <VideoCarousel participants={participants} />
+            <div className="flex-1 p-4">
+              <NoteEditor roomId={roomId} />
+            </div>
+          </div>
+        ) : (
+          // Video-first layout: Video main, Notes in side panel
+          <div className="flex-1 flex">
+            {/* Video area */}
+            <div className="flex-1">
+              <VideoGrid
+                localStream={localStream}
+                remoteStream={remoteStream}
+                localVideoEnabled={!isVideoOff}
+                remoteVideoEnabled={true}
+                localName="You"
+                remoteName="Peer"
+              />
+            </div>
+            {/* Notes side panel */}
+            <div className="w-[30%] min-w-[400px] border-l border-slate-700 p-4">
+              <NoteEditor roomId={roomId} />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Control Panel */}
@@ -108,6 +196,14 @@ export default function CallPage() {
         onToggleVideo={toggleVideo}
         onEndCall={handleEndCall}
       />
+
+      {/* Floating note panel */}
+      {showFloatingNotes && (
+        <FloatingNotePanel
+          roomId={roomId}
+          onClose={() => setShowFloatingNotes(false)}
+        />
+      )}
     </div>
   );
 }
