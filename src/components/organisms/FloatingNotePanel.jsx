@@ -1,35 +1,48 @@
 /**
  * FloatingNotePanel Component (Organism)
- * Draggable and resizable floating panel for the note editor
+ * Draggable and resizable floating panel using react-rnd
  */
 import React, { useState } from 'react';
-import Draggable from 'react-draggable';
+import { Rnd } from 'react-rnd';
 import { Minimize2, Maximize2, X } from 'lucide-react';
 import NoteEditor from './NoteEditor';
 
 export default function FloatingNotePanel({ roomId, onClose }) {
     const [isMinimized, setIsMinimized] = useState(false);
     const [size, setSize] = useState({ width: 600, height: 500 });
+    const [position, setPosition] = useState({ x: 100, y: 100 });
 
     const handleMinimize = () => {
         setIsMinimized(!isMinimized);
     };
 
     return (
-        <Draggable
-            handle=".drag-handle"
-            bounds="parent"
-            defaultPosition={{ x: 100, y: 100 }}
+        <Rnd
+            size={isMinimized ? { width: 300, height: 50 } : size}
+            position={position}
+            onDragStop={(e, d) => {
+                setPosition({ x: d.x, y: d.y });
+            }}
+            onResizeStop={(e, direction, ref, delta, position) => {
+                setSize({
+                    width: ref.offsetWidth,
+                    height: ref.offsetHeight,
+                });
+                setPosition(position);
+            }}
+            minWidth={300}
+            minHeight={isMinimized ? 50 : 300}
+            bounds="window"
+            dragHandleClassName="drag-handle"
+            enableResizing={!isMinimized}
+            className="z-50"
+            style={{
+                zIndex: 50,
+            }}
         >
-            <div
-                className="fixed z-50 bg-slate-900 rounded-lg shadow-2xl border-2 border-slate-600"
-                style={{
-                    width: isMinimized ? '300px' : `${size.width}px`,
-                    height: isMinimized ? '50px' : `${size.height}px`,
-                }}
-            >
+            <div className="w-full h-full bg-slate-900 rounded-lg shadow-2xl border-2 border-slate-600 flex flex-col">
                 {/* Header */}
-                <div className="drag-handle flex items-center justify-between px-4 py-2 bg-slate-800 rounded-t-lg border-b border-slate-700 cursor-move">
+                <div className="drag-handle flex items-center justify-between px-4 py-2 bg-slate-800 rounded-t-lg border-b border-slate-700 cursor-move flex-shrink-0">
                     <h3 className="text-sm font-semibold text-white">Notes</h3>
                     <div className="flex items-center gap-2">
                         <button
@@ -55,41 +68,11 @@ export default function FloatingNotePanel({ roomId, onClose }) {
 
                 {/* Content */}
                 {!isMinimized && (
-                    <div className="h-[calc(100%-50px)] p-2">
+                    <div className="flex-1 p-2 overflow-hidden">
                         <NoteEditor roomId={roomId} className="h-full" />
                     </div>
                 )}
-
-                {/* Resize handle (bottom-right corner) */}
-                {!isMinimized && (
-                    <div
-                        className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
-                        onMouseDown={(e) => {
-                            e.preventDefault();
-                            const startX = e.clientX;
-                            const startY = e.clientY;
-                            const startWidth = size.width;
-                            const startHeight = size.height;
-
-                            const handleMouseMove = (moveEvent) => {
-                                const newWidth = Math.max(400, startWidth + (moveEvent.clientX - startX));
-                                const newHeight = Math.max(300, startHeight + (moveEvent.clientY - startY));
-                                setSize({ width: newWidth, height: newHeight });
-                            };
-
-                            const handleMouseUp = () => {
-                                document.removeEventListener('mousemove', handleMouseMove);
-                                document.removeEventListener('mouseup', handleMouseUp);
-                            };
-
-                            document.addEventListener('mousemove', handleMouseMove);
-                            document.addEventListener('mouseup', handleMouseUp);
-                        }}
-                    >
-                        <div className="absolute bottom-1 right-1 w-3 h-3 border-r-2 border-b-2 border-slate-500" />
-                    </div>
-                )}
             </div>
-        </Draggable>
+        </Rnd>
     );
 }
